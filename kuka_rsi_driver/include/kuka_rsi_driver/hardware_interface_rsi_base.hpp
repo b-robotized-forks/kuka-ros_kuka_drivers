@@ -35,6 +35,7 @@
 #include "kuka_drivers_core/control_mode.hpp"
 #include "kuka_drivers_core/stop_reason.hpp"
 #include "kuka_rsi_driver/robot_status_manager.hpp"
+#include "kuka_rsi_driver/velocity_estimator.hpp"
 #include "kuka_rsi_driver/visibility_control.h"
 
 using hardware_interface::return_type;
@@ -204,6 +205,8 @@ protected:
 
   // Reads the fault_injection hardware parameter; false when it is not a boolean.
   KUKA_RSI_DRIVER_LOCAL bool ReadFaultInjectionParameter();
+  // Reads velocity_filter_cutoff_hz and configures the derived-velocity estimator with it.
+  KUKA_RSI_DRIVER_LOCAL bool ReadVelocityFilterParameter();
 
   // Clears the fault injection commands; called at activation.
   KUKA_RSI_DRIVER_LOCAL void ResetFaultInjection();
@@ -224,8 +227,6 @@ protected:
     const hardware_interface::ComponentInfo & joint) const;
 
   KUKA_RSI_DRIVER_LOCAL void CopyGPIOStatesToCommands();
-
-  KUKA_RSI_DRIVER_LOCAL void DeriveVelocityStates();
 
   virtual KUKA_RSI_DRIVER_LOCAL void CreateRobotInstance(
     const kuka::external::control::kss::Configuration &) = 0;
@@ -249,9 +250,6 @@ protected:
   struct InterfaceData
   {
     std::vector<double> position_states;
-    // Previous cycle's positions, kept only to derive velocity when the RSI XML
-    // config maps no VELOCITY field. NaN means "no usable previous sample".
-    std::vector<double> prev_position_states;
     std::vector<double> velocity_states;
     std::vector<double> torque_states;
     std::vector<double> gpio_states;
@@ -347,6 +345,7 @@ protected:
   std::unique_ptr<kuka::external::control::kss::rsi::Robot> robot_ptr_;
 
   InterfaceData interface_data_;
+  VelocityEstimator velocity_estimator_;
   // The exported interfaces own their values; each is paired with the value it mirrors.
   std::vector<std::pair<hardware_interface::StateInterface::SharedPtr, const double *>>
     exported_states_;
@@ -379,6 +378,7 @@ protected:
   static constexpr std::chrono::milliseconds DEFAULT_FIRST_PACKET_TIMEOUT{5'000};
   static constexpr std::chrono::milliseconds DEFAULT_STOP_PENDING_TIMEOUT{3'000};
   static constexpr std::chrono::milliseconds DEFAULT_READ_TIMEOUT{12};
+  static constexpr double DEFAULT_VELOCITY_FILTER_CUTOFF_HZ = 50.0;
   static constexpr std::chrono::milliseconds DEFAULT_FIRST_STATUS_TIMEOUT{1'000};
   std::chrono::milliseconds configure_timeout_{DEFAULT_CONFIGURE_TIMEOUT};
   std::chrono::milliseconds drives_on_timeout_{DEFAULT_DRIVES_ON_TIMEOUT};

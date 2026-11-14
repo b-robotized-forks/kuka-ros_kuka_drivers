@@ -40,8 +40,6 @@ CallbackReturn KukaRSIHardwareInterfaceBase::on_init(
 
   interface_data_.position_states.resize(
     info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-  interface_data_.prev_position_states.resize(
-    info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   interface_data_.velocity_states.resize(
     info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   interface_data_.torque_states.resize(
@@ -107,9 +105,8 @@ CallbackReturn KukaRSIHardwareInterfaceBase::on_init(
     RCLCPP_INFO(
       logger_,
       "motion_state.joints.velocities is not configured in RSI XML. Velocity state values will be "
-      "derived by differentiating the measured joint positions over the RSI cycle time, not "
-      "measured by the robot. RSI position is quantised, so filter before using them for anything "
-      "tighter than a brake ramp.");
+      "derived from the measured joint positions over the IPOC interval between packets and "
+      "smoothed by the velocity_filter_cutoff_hz low-pass, not measured by the robot.");
   }
 
   if (!optional_interface_flags_.has_torque_state_interface)
@@ -192,7 +189,7 @@ CallbackReturn KukaRSIHardwareInterfaceBase::on_init(
     interface_prefix_ = it->second;
   }
 
-  if (!ReadTimeoutParameters() || !ReadFaultInjectionParameter())
+  if (!ReadTimeoutParameters() || !ReadFaultInjectionParameter() || !ReadVelocityFilterParameter())
   {
     return CallbackReturn::ERROR;
   }
@@ -712,7 +709,9 @@ void KukaRSIHardwareInterfaceBase::Read(const int64_t request_timeout)
     }
     else
     {
-      DeriveVelocityStates();
+      // RSI has no axis-velocity send object on most controllers, so velocity is derived.
+      velocity_estimator_.Update(
+        interface_data_.position_states, robot_ptr_->getIpoc(), interface_data_.velocity_states);
     }
     if (optional_interface_flags_.has_torque_state_interface)
     {
@@ -795,30 +794,6 @@ void KukaRSIHardwareInterfaceBase::CopyGPIOStatesToCommands()
         interface_data_.gpio_states[runtime_state_.gpio_states_to_commands_map[i]];
     }
   }
-}
-
-// RSI has no built-in axis-velocity send object, so on most controllers nothing
-// can be mapped to motion_state.joints.velocities and the state would otherwise
-// stay NaN for the life of the process -- claimable by a controller but never
-// written, which is worse than absent. Differentiating the positions we already
-// receive is exact in time: the KRC owns the clock and the cycle time is fixed,
-// so dt is the nominal cycle rather than a jittery host-side measurement.
-void KukaRSIHardwareInterfaceBase::DeriveVelocityStates()
-{
-  const double dt = RSI_CYCLE_TIME_MS / 1000.0;
-
-  for (size_t i = 0; i < interface_data_.velocity_states.size(); i++)
-  {
-    const double prev = interface_data_.prev_position_states[i];
-    // First cycle after activation: no usable previous sample, so report
-    // standstill rather than a step-sized spike.
-    interface_data_.velocity_states[i] =
-      std::isfinite(prev) ? (interface_data_.position_states[i] - prev) / dt : 0.0;
-  }
-
-  std::copy(
-    interface_data_.position_states.cbegin(), interface_data_.position_states.cend(),
-    interface_data_.prev_position_states.begin());
 }
 
 kuka::external::control::kss::GPIOConfiguration KukaRSIHardwareInterfaceBase::ParseGPIOConfig(
@@ -1193,7 +1168,7 @@ CallbackReturn KukaRSIHardwareInterfaceBase::extended_deactivation(const rclcpp_
     const uint64_t stop_ipoc = robot_ptr_->getIpoc();
     RCLCPP_INFO(
       logger_,
-      "Deactivation requests issued: stop packet replied to IPOC %lu (%lu RSI cycle(s) after the "
+      "Deactivation requests issued: stop packet replied to IPOC %lu (%lu ms of IPOC after the "
       "last read), cancel and drives-off requested %.3f ms after it",
       stop_ipoc, stop_ipoc - entry_ipoc, after_stop_ms);
   }
@@ -1335,13 +1310,8 @@ void KukaRSIHardwareInterfaceBase::ResetDiagnostics()
   diagnostics_state_.last_ipoc = 0;
   diagnostics_state_.last_msg_received_time = std::chrono::steady_clock::time_point{};
 
-  // Also drop the previous position sample. The arm can move while external
-  // control is off -- by jog, or by the KRL program after a fault -- so a sample
-  // carried across an activation boundary would differentiate into a spike on the
-  // first cycle. This is the only hook both activation paths share.
-  std::fill(
-    interface_data_.prev_position_states.begin(), interface_data_.prev_position_states.end(),
-    std::numeric_limits<double>::quiet_NaN());
+  // The arm can move while external control is off, so no sample is differentiated across it.
+  velocity_estimator_.Reset();
 }
 
 bool KukaRSIHardwareInterfaceBase::LoadXmlConfig(
@@ -1392,6 +1362,34 @@ bool KukaRSIHardwareInterfaceBase::ReadTimeoutParameters()
          ReadTimeoutParameter("read_timeout_ms", DEFAULT_READ_TIMEOUT, read_timeout_) &&
          ReadTimeoutParameter(
            "first_status_timeout_ms", DEFAULT_FIRST_STATUS_TIMEOUT, first_status_timeout_);
+}
+
+bool KukaRSIHardwareInterfaceBase::ReadVelocityFilterParameter()
+{
+  double cutoff_hz = DEFAULT_VELOCITY_FILTER_CUTOFF_HZ;
+  const auto it = info_.hardware_parameters.find("velocity_filter_cutoff_hz");
+  if (it != info_.hardware_parameters.end())
+  {
+    try
+    {
+      size_t used = 0;
+      cutoff_hz = std::stod(it->second, &used);
+      if (used != it->second.size() || !std::isfinite(cutoff_hz) || cutoff_hz < 0.0)
+      {
+        throw std::invalid_argument(it->second);
+      }
+    }
+    catch (const std::exception &)
+    {
+      RCLCPP_ERROR(
+        logger_, "velocity_filter_cutoff_hz must be a non-negative number, got '%s'",
+        it->second.c_str());
+      return false;
+    }
+  }
+  velocity_estimator_.Configure(info_.joints.size(), cutoff_hz, RSI_CYCLE_TIME_MS / 1000.0);
+  RCLCPP_INFO(logger_, "Derived joint velocity low-pass cutoff: %.1f Hz (0 is off)", cutoff_hz);
+  return true;
 }
 
 bool KukaRSIHardwareInterfaceBase::ReadFaultInjectionParameter()

@@ -76,6 +76,9 @@ install(
 
 if(BUILD_TESTING)
   find_package(launch_testing_ament_cmake)
+  find_package(ament_cmake_gtest REQUIRED)
+
+  ament_add_gtest(test_velocity_estimator test/test_velocity_estimator.cpp)
 
   # Test-only plugin with the mxA status fake. It lives in a private ament prefix under the
   # build directory, so it is never installed and no shipped description can select it.
