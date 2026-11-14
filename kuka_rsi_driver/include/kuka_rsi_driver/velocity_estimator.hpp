@@ -50,7 +50,8 @@ public:
   void Reset() { primed_ = false; }
 
   // Returns false when the sample repeats the last IPOC and velocities is left as it was.
-  bool Update(const std::vector<double> & positions, uint64_t ipoc, std::vector<double> & velocities)
+  bool Update(
+    const std::vector<double> & positions, uint64_t ipoc, std::vector<double> & velocities)
   {
     if (primed_ && ipoc == last_ipoc_)
     {

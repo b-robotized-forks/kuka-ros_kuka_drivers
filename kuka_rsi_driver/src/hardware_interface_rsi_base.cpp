@@ -189,7 +189,7 @@ CallbackReturn KukaRSIHardwareInterfaceBase::on_init(
     interface_prefix_ = it->second;
   }
 
-  if (!ReadTimeoutParameters() || !ReadFaultInjectionParameter() || !ReadVelocityFilterParameter())
+  if (!ReadTimeoutParameters() || !ReadFaultInjectionParameter() || !ReadPacketParameters())
   {
     return CallbackReturn::ERROR;
   }
@@ -743,6 +743,7 @@ void KukaRSIHardwareInterfaceBase::Read(const int64_t request_timeout)
         diagnostics_state_.packet_loss_count, robot_ptr_->getDelay());
     }
 
+    DetectRepeatedIpoc(robot_ptr_->getIpoc());
     diagnostics_state_.last_ipoc = robot_ptr_->getIpoc();
   }
   else
@@ -1308,6 +1309,7 @@ void KukaRSIHardwareInterfaceBase::ResetDiagnostics()
   // Reset diagnostics related variables
   diagnostics_state_.packet_loss_count = 0;
   diagnostics_state_.last_ipoc = 0;
+  diagnostics_state_.repeated_ipoc_count = 0;
   diagnostics_state_.last_msg_received_time = std::chrono::steady_clock::time_point{};
 
   // The arm can move while external control is off, so no sample is differentiated across it.
@@ -1364,7 +1366,33 @@ bool KukaRSIHardwareInterfaceBase::ReadTimeoutParameters()
            "first_status_timeout_ms", DEFAULT_FIRST_STATUS_TIMEOUT, first_status_timeout_);
 }
 
-bool KukaRSIHardwareInterfaceBase::ReadVelocityFilterParameter()
+// The reply to a repeated IPOC repeats the last commanded position, which the KRC reads as a
+// request to stop.
+void KukaRSIHardwareInterfaceBase::DetectRepeatedIpoc(uint64_t ipoc)
+{
+  if (!detect_repeated_ipoc_)
+  {
+    return;
+  }
+  auto & diagnostics = diagnostics_state_;
+  if (diagnostics.last_ipoc != 0 && ipoc == diagnostics.last_ipoc)
+  {
+    if (diagnostics.repeated_ipoc_count++ == 0)
+    {
+      RCLCPP_WARN(logger_, "Repeated IPOC %lu: the controller sent the same cycle again", ipoc);
+    }
+    return;
+  }
+  if (diagnostics.repeated_ipoc_count > 0)
+  {
+    RCLCPP_WARN(
+      logger_, "IPOC %lu repeated %lu time(s)", diagnostics.last_ipoc,
+      diagnostics.repeated_ipoc_count);
+    diagnostics.repeated_ipoc_count = 0;
+  }
+}
+
+bool KukaRSIHardwareInterfaceBase::ReadPacketParameters()
 {
   double cutoff_hz = DEFAULT_VELOCITY_FILTER_CUTOFF_HZ;
   const auto it = info_.hardware_parameters.find("velocity_filter_cutoff_hz");
@@ -1388,6 +1416,25 @@ bool KukaRSIHardwareInterfaceBase::ReadVelocityFilterParameter()
     }
   }
   velocity_estimator_.Configure(info_.joints.size(), cutoff_hz, RSI_CYCLE_TIME_MS / 1000.0);
+
+  const auto detect = info_.hardware_parameters.find("detect_repeated_ipoc");
+  if (detect != info_.hardware_parameters.end())
+  {
+    if (detect->second == "true" || detect->second == "True")
+    {
+      detect_repeated_ipoc_ = true;
+    }
+    else if (detect->second == "false" || detect->second == "False")
+    {
+      detect_repeated_ipoc_ = false;
+    }
+    else
+    {
+      RCLCPP_ERROR(
+        logger_, "detect_repeated_ipoc must be true or false, got '%s'", detect->second.c_str());
+      return false;
+    }
+  }
   RCLCPP_INFO(logger_, "Derived joint velocity low-pass cutoff: %.1f Hz (0 is off)", cutoff_hz);
   return true;
 }

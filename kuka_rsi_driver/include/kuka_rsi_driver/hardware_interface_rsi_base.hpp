@@ -205,8 +205,10 @@ protected:
 
   // Reads the fault_injection hardware parameter; false when it is not a boolean.
   KUKA_RSI_DRIVER_LOCAL bool ReadFaultInjectionParameter();
-  // Reads velocity_filter_cutoff_hz and configures the derived-velocity estimator with it.
-  KUKA_RSI_DRIVER_LOCAL bool ReadVelocityFilterParameter();
+  // Reads velocity_filter_cutoff_hz and detect_repeated_ipoc.
+  KUKA_RSI_DRIVER_LOCAL bool ReadPacketParameters();
+  // Warns on the first packet that repeats the last IPOC and with the count when the run ends.
+  KUKA_RSI_DRIVER_LOCAL void DetectRepeatedIpoc(uint64_t ipoc);
 
   // Clears the fault injection commands; called at activation.
   KUKA_RSI_DRIVER_LOCAL void ResetFaultInjection();
@@ -314,6 +316,8 @@ protected:
     std::chrono::steady_clock::time_point last_msg_received_time{};
     uint64_t packet_loss_count = 0;
     uint64_t last_ipoc = 0;
+    // Packets in a row that repeated last_ipoc.
+    uint64_t repeated_ipoc_count = 0;
   };
 
   struct ControlState
@@ -346,6 +350,7 @@ protected:
 
   InterfaceData interface_data_;
   VelocityEstimator velocity_estimator_;
+  bool detect_repeated_ipoc_ = true;
   // The exported interfaces own their values; each is paired with the value it mirrors.
   std::vector<std::pair<hardware_interface::StateInterface::SharedPtr, const double *>>
     exported_states_;
