@@ -97,7 +97,7 @@ The `mxa_rsi` and `eki_rsi` hardware interfaces export the controller status as 
 | `state/brake_test_due` | `BRAKETEST_REQ_INT` | the controller requests a brake test; scheduling it is the client's job, the driver stops nothing |
 | `state/brake_test_warning` | `BRAKETEST_WARN` | the controller's brake-test warning |
 
-The `eki_rsi` interface fills the same flags from the EKI status, with the two brake-test flags at `0`. Every flag but `state/drive_fault` is live: it follows the controller and clears when the condition clears, so simultaneous causes read as several flags set at once. `state/drive_fault` is set from the SDK's error event for mxA error 801 in every lifecycle state. The SDK raises that event once when the error appears and never for its release, so the flag holds until the next successful activation; the KRC refuses an RSI start while the message stands, so a successful activation means the message was acknowledged. While the component is active, the same event also stops it, and the stop latches `inhibitor/drive_fault`. The `rsi_only` interface exports `state/drive_fault` too, but has no mxA link to set it from.
+The `eki_rsi` interface fills the same flags from the EKI status, with the two brake-test flags at `0`. Every flag but `state/drive_fault` is live: it follows the controller and clears when the condition clears, so simultaneous causes read as several flags set at once. `state/drive_fault` is set from the SDK's error event for mxA error 801 in every lifecycle state. The SDK raises that event once when the error appears and never for its release, so the flag holds until the next successful activation; the KRC refuses an RSI start while the message stands, so a successful activation means the message was acknowledged. While the component is active, the same event also stops it, and the stop latches `inhibitor/drive_fault`; while it is inactive, the event latches the slot directly. The `rsi_only` interface exports `state/drive_fault` too, but has no mxA link to set it from.
 
 Every `configure` of the `mxa_rsi` interface clears the status flags to their unknown values, since a new mxA client reports nothing until its first status telegram; until then `state/operation_mode` reads `0` and `inhibitor/mode` is active. `on_activate` waits up to `first_status_timeout_ms` for that first status and fails with `no controller status since configure` if none arrives, so it never decides on drives, e-stop, guard stop or operation mode from the link before.
 
@@ -116,14 +116,14 @@ The `mxa_rsi` and `eki_rsi` hardware interfaces report why the arm cannot move t
 | `inhibitor/estop` | `state/emergency_stop` | yes | `1` (release and acknowledge) | `1` |
 | `inhibitor/guard` | `state/guard_stop` | yes | `1` | `1` |
 | `inhibitor/mode` | `state/operation_mode` is not `4` (EXT) | no | `1` (key switch) | `0` |
-| `inhibitor/drive_fault` | `state/drive_fault` | yes | `1` | `1` |
+| `inhibitor/drive_fault` | `state/drive_fault` rising, until the slot latches | yes | `1` | `1` |
 | `inhibitor/brake_test` | `state/brake_test_due` | yes | `1` (iiQKA.UI only) | `1` |
-| `inhibitor/rsi` | the driver's own RSI stop: no RSI packet within `read_timeout_ms`, a failed send, a stop requested through `gpio/stop_request` or `gpio/rsi_mute_ms` (`fault_injection` only), or a stop no other slot explains; held until an activation succeeds | yes | `0` | `0` |
+| `inhibitor/rsi` | the driver's own RSI stop: no RSI packet within `read_timeout_ms`, a failed send, a stop requested through `gpio/stop_request` or `gpio/rsi_mute_ms` (`fault_injection` only), or a stop no other slot explains, until the slot latches at the stop | yes | `0` | `0` |
 
 The latch rule:
 
-- `active` is the live signal, refreshed on every `read()` in every lifecycle state.
-- `latched` is set for every slot that is active at the instant the component leaves `active` on a fault, and for a new e-stop or guard stop while the component is `inactive`. It holds while the component is `inactive`, after the slot's `active` drops too, and clears only when an activation succeeds. `inhibitor/mode` never latches: the key switch is its own release.
+- `active` is the live signal, refreshed on every `read()` in every lifecycle state. `inhibitor/drive_fault` and `inhibitor/rsi` come from events whose release the driver cannot observe, so they read `active` only until they latch, and `latched` after.
+- `latched` is set for every slot that is active at the instant the component leaves `active` on a fault, and for a new e-stop, guard stop or drive fault while the component is `inactive`. It holds while the component is `inactive`, after the slot's `active` drops too, and clears only when an activation succeeds. `inhibitor/mode` never latches: the key switch is its own release.
 - A guard stop reported while the driver's own stop is pending latches nothing: some controllers report the drives-off after a commanded deactivate as a guard stop. A commanded deactivate latches nothing, since the component leaves `active` before anything drops.
 - `operator_action` is the fixed per-slot property in the table. `operator_action_assumed` is `1` where the driver observes the input clearing but cannot observe the KRC's acknowledgement: a client may try an activation once the person has acted, and its success is the proof. `inhibitor/mode` needs nothing beyond the key switch, which the driver reads live, and `inhibitor/rsi` needs no person.
 

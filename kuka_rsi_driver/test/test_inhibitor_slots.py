@@ -203,11 +203,11 @@ class TestInhibitorSlots(RsiFaultTestCase):
         self.assertIsNotNone(match, "no unattributed line")
         self.assertEqual(match.group(1), "motion not possible")
         self.assert_stopped(log, {"rsi"})
-        self.assert_active({"rsi"})
+        self.assert_active(set())
 
-        # rsi shows no release: it holds until the activation succeeds.
+        # rsi shows no release: it stays latched until the activation succeeds.
         self.inject("motion_possible=1")
-        self.assert_active({"rsi"})
+        self.assert_active(set())
         self.assert_latched({"rsi"})
         self.reactivate_and_park(proc_output, log)
 

@@ -287,7 +287,7 @@ protected:
     std::atomic<bool> drive_fault{false};
     double drive_fault_state = 0.0;
     // The driver's own RSI stop (a receive or send failure, or a stop no other slot explains),
-    // the active source of inhibitor/rsi; held until a successful activation.
+    // the source of inhibitor/rsi; held until a successful activation.
     std::atomic<bool> rsi_fault{false};
     // Latches requested from the SDK and mxA threads, one bit per slot; read() folds them in.
     std::atomic<uint8_t> latch_requests{0};

@@ -84,7 +84,7 @@ class TestInhibitorLatchedUntilActivate(RsiFaultTestCase):
         self.assert_stopped(log, {"rsi"})
         self.assertTrue(log.wait_for("Stop complete", timeout=5), "stop never completed")
         self._spin_for(1.0)
-        self.assert_active({"rsi"})
+        self.assert_active(set())
         self.assert_latched({"rsi"})
 
         # A refused activation keeps the latch; the key switch shows live beside it.
@@ -92,7 +92,7 @@ class TestInhibitorLatchedUntilActivate(RsiFaultTestCase):
         self.inject(f"operation_mode={OP_MODE_T1}")
         self.assertFalse(self.set_component_state(State.PRIMARY_STATE_ACTIVE), "activated in T1")
         self.assertTrue(log.wait_for("Activation failed: KRC not in EXT", timeout=5))
-        self.assert_active({"mode", "rsi"})
+        self.assert_active({"mode"})
         self.assert_latched({"rsi"})
 
         # A successful one clears it, and a normal deactivate latches nothing.

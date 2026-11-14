@@ -478,6 +478,10 @@ void KukaRSIHardwareInterfaceBase::OnControlEvent(
       logger_,
       "Drive fault: the KRC latched a stop message (mxA error 801), held until the next successful "
       "activation");
+    if (!runtime_state_.is_active.load(std::memory_order_acquire))
+    {
+      RequestInhibitorLatch(Inhibitor::DRIVE_FAULT);
+    }
   }
   if (!runtime_state_.is_active.load(std::memory_order_acquire) || !LatchStopReason(reason))
   {
@@ -540,9 +544,14 @@ void KukaRSIHardwareInterfaceBase::UpdateInhibitorActive()
   active[Inhibitor::ESTOP] = status.IsEmergencyStopActive() ? 1.0 : 0.0;
   active[Inhibitor::GUARD] = status.IsGuardStopActive() ? 1.0 : 0.0;
   active[Inhibitor::MODE] = status.IsOperationModeExt() ? 0.0 : 1.0;
-  active[Inhibitor::DRIVE_FAULT] = event_state_.drive_fault.load() ? 1.0 : 0.0;
+  // Both causes are events with no observable release: active until latched, latched after.
+  const auto & latched = event_state_.inhibitor_latched;
+  active[Inhibitor::DRIVE_FAULT] =
+    event_state_.drive_fault.load() && latched[Inhibitor::DRIVE_FAULT] == 0.0 ? 1.0 : 0.0;
   active[Inhibitor::BRAKE_TEST] = status.IsBrakeTestDue() ? 1.0 : 0.0;
-  active[Inhibitor::RSI] = event_state_.rsi_fault.load(std::memory_order_relaxed) ? 1.0 : 0.0;
+  active[Inhibitor::RSI] =
+    event_state_.rsi_fault.load(std::memory_order_relaxed) && latched[Inhibitor::RSI] == 0.0 ? 1.0
+                                                                                             : 0.0;
 }
 
 void KukaRSIHardwareInterfaceBase::UpdateInhibitors()

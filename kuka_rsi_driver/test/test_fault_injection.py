@@ -84,7 +84,7 @@ class TestFaultInjection(RsiFaultTestCase):
         self.assertEqual(self.controller_state(JSB), "active")
         # The injected stop is the driver's own: inhibitor/rsi, not an unexplained stop.
         self.assertIsNone(log.wait_for_match(UNATTRIBUTED_LINE, timeout=0.1), "unattributed stop")
-        self.assert_active({"rsi"})
+        self.assert_active(set())
         self.assert_latched({"rsi"})
 
     def assert_streaming(self):

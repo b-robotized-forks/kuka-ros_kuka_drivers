@@ -71,7 +71,7 @@ class TestMxaStatusDeactivates(RsiFaultTestCase):
         self.assertTrue(log.wait_for("Stop complete", timeout=5), "stop never completed")
         self.assertEqual(log.matches(RECEIVE_FAILURE_LINE), [], "RSI blamed for a status stop")
         self.assertEqual(
-            len(log.matches(UNATTRIBUTED_LINE)), 1 if active == {"rsi"} else 0, "attribution"
+            len(log.matches(UNATTRIBUTED_LINE)), 1 if latched == {"rsi"} else 0, "attribution"
         )
         self._spin_for(0.5)
         self.assert_active(active)
@@ -93,7 +93,7 @@ class TestMxaStatusDeactivates(RsiFaultTestCase):
             "drives_powered=0",
             "drives not powered",
             "drives_powered=1",
-            active={"rsi"},
+            active=set(),
             latched={"rsi"},
         )
 
