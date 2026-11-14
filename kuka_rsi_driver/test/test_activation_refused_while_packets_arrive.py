@@ -110,6 +110,8 @@ class TestActivationRefusedWhilePacketsArrive(RsiFaultTestCase):
         self.assertFalse(log.wait_for(STARTING_LINE, timeout=0.1), "RSI start requested")
         self.assertEqual(self.component_state(), State.PRIMARY_STATE_INACTIVE)
         self.assert_latched(set())
+        # A failed activation leaves no drives-on request behind.
+        self.assertEqual(self.state_value("drives_powered"), 0.0)
 
         # Once the stream stops, the leftovers are dropped and activation succeeds.
         log = LogCursor(proc_output)

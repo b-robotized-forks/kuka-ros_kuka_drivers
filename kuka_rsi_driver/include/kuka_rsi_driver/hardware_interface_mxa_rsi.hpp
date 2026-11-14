@@ -85,7 +85,7 @@ protected:
   KUKA_RSI_DRIVER_PUBLIC bool RequestDrivesOn(
     std::chrono::steady_clock::time_point deadline) override;
 
-  // Leaves DRIVES_ON low, so the next attempt has an edge.
+  // Leaves DRIVES_ON low, so the next attempt has an edge, and ends a message reset.
   KUKA_RSI_DRIVER_PUBLIC void AbandonDrivesOn() override;
 
   // Drives powered with operator safety back (USER_SAFE).
@@ -109,6 +109,8 @@ private:
   // How long DrivesOn() must hold before the drives count as on; outlasts a single-telegram
   // flicker.
   static constexpr std::chrono::milliseconds DRIVES_ON_SETTLE{100};
+  // Edges with operator safety back but no power before each further edge carries a message reset.
+  static constexpr int DRIVES_ON_EDGES_BEFORE_MESSAGE_RESET = 2;
   // Set once read() has exported an mxA loss as server_state; the next write() or read() errors.
   bool mxa_loss_exported_ = false;
   // E-stop and guard stop of the last telegram, mxA thread only. Telegrams come only on a change,

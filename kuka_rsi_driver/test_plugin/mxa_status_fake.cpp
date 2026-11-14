@@ -197,7 +197,12 @@ MxaStatusFake::Status MxaStatusFake::TurnOnDrives()
         RCLCPP_INFO(logger_, "mxA status fake: PERI_RDY flash with guard_stop=1");
       }
     }
-    if (edge && (status_.guard_stop_ || status_.emergency_stop_))
+    if (edge && error_message_)
+    {
+      RCLCPP_INFO(logger_, "mxA status fake: DRIVES_ON edge ignored (error message)");
+      edge = false;
+    }
+    else if (edge && (status_.guard_stop_ || status_.emergency_stop_))
     {
       RCLCPP_INFO(
         logger_, "mxA status fake: DRIVES_ON edge ignored (guard_stop=%d emergency_stop=%d)",
@@ -226,7 +231,9 @@ MxaStatusFake::Status MxaStatusFake::TurnOffDrives()
 {
   {
     std::lock_guard<std::mutex> lk{mtx_};
+    RCLCPP_INFO(logger_, "mxA status fake: drives-off requested");
     drives_on_input_ = false;
+    message_reset_held_ = false;
     if (status_.drives_powered_ && !drives_stuck_ && normal_stop_)
     {
       status_.guard_stop_ = true;
@@ -237,6 +244,26 @@ MxaStatusFake::Status MxaStatusFake::TurnOffDrives()
     }
   }
   SetDrivesPowered(false);
+  return {ReturnCode::OK};
+}
+
+MxaStatusFake::Status MxaStatusFake::DropDrivesOn()
+{
+  std::lock_guard<std::mutex> lk{mtx_};
+  drives_on_input_ = false;
+  return {ReturnCode::OK};
+}
+
+MxaStatusFake::Status MxaStatusFake::ResetMessages()
+{
+  std::lock_guard<std::mutex> lk{mtx_};
+  RCLCPP_INFO(logger_, "mxA status fake: message reset requested");
+  message_reset_held_ = true;
+  if (error_message_)
+  {
+    error_message_ = false;
+    RCLCPP_INFO(logger_, "mxA status fake: messages reset, error message cleared");
+  }
   return {ReturnCode::OK};
 }
 
@@ -463,6 +490,10 @@ bool MxaStatusFake::ApplyToken(const std::string & token)
   {
     drives_stuck_ = flag;
   }
+  else if (key == "error_message")
+  {
+    error_message_ = flag;
+  }
   else if (key == "send_fail")
   {
     send_fail_ = flag;
@@ -528,6 +559,10 @@ void MxaStatusFake::SetDrivesPowered(bool powered)
       return;
     }
     status_.drives_powered_ = powered;
+    if (powered)
+    {
+      message_reset_held_ = false;
+    }
   }
   Dispatch();
 }

@@ -308,6 +308,8 @@ bool KukaMxaRsiHardwareInterface::RequestDrivesOn(std::chrono::steady_clock::tim
 {
   auto & status = control_state_.status_manager;
   int edges = 0;
+  int safe_edges = 0;
+  bool messages_reset = false;
   std::chrono::steady_clock::time_point on_since{};
   std::chrono::steady_clock::time_point pulse_end{};
   while (std::chrono::steady_clock::now() < deadline)
@@ -333,11 +335,11 @@ bool KukaMxaRsiHardwareInterface::RequestDrivesOn(std::chrono::steady_clock::tim
       return true;
     }
 
-    // A new edge only while PERI_RDY reads 0: the SDK sends the low phase's drives-off only with
-    // PERI_RDY at 1, and it would end a power-up still settling or re-arm the Normal Stop.
+    // A new edge only while PERI_RDY reads 0. The low phase sends no drives-off, which would stop a
+    // power-up still settling or re-arm the Normal Stop.
     if (now >= pulse_end && !status.DrivesPowered())
     {
-      robot_ptr_->TurnOffDrives();
+      robot_ptr_->DropDrivesOn();
       // Paced by mxA telegrams; a quiet link runs into the deadline and fails the attempt.
       const uint64_t low_from = status.TelegramCount();
       while (status.TelegramCount() < low_from + 2 && std::chrono::steady_clock::now() < deadline)
@@ -350,6 +352,22 @@ bool KukaMxaRsiHardwareInterface::RequestDrivesOn(std::chrono::steady_clock::tim
       }
       robot_ptr_->TurnOnDrives();
       ++edges;
+      // An error stop's unconfirmed message holds the drives off; configure's link start resets it.
+      if (
+        !status.IsEmergencyStopActive() && !status.IsGuardStopActive() &&
+        ++safe_edges > DRIVES_ON_EDGES_BEFORE_MESSAGE_RESET)
+      {
+        if (!messages_reset)
+        {
+          RCLCPP_WARN(
+            logger_,
+            "Drives not powered after %d DRIVES_ON edges with no e-stop or guard stop, resetting "
+            "the controller's messages (%s)",
+            DRIVES_ON_EDGES_BEFORE_MESSAGE_RESET, status.Describe().c_str());
+          messages_reset = true;
+        }
+        robot_ptr_->ResetMessages();
+      }
       pulse_end = std::chrono::steady_clock::now() + DRIVES_ON_PULSE;
     }
     std::this_thread::sleep_for(DRIVES_ON_STEP_INTERVAL);

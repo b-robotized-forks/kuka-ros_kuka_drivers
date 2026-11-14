@@ -47,6 +47,7 @@ namespace kuka_rsi_driver
 //                        the text is delivered as a space, so the SDK's own texts can be sent
 //   "cancel_cycles=<int>" ticks (10 ms) a requested RSI cancel takes; held while status is frozen
 //   "drives_stuck=<0|1>"  while set, drives-on and drives-off requests leave drives_powered as is
+//   "error_message=<0|1>"  an error stop's message: DRIVES_ON edges do nothing until reset
 //   "send_fail=<0|1>"    while set, SendControlSignal fails without sending
 //   "report"             log rsi_running, cancel_pending, cancelled and drives_powered
 // Built only for tests, behind KukaMxaRsiStatusFakeHardwareInterface.
@@ -71,6 +72,8 @@ public:
   bool IsStatusTelegramPending() const override;
   Status TurnOnDrives() override;
   Status TurnOffDrives() override;
+  Status DropDrivesOn() override;
+  Status ResetMessages() override;
   Status SetCycleTime(kuka::external::control::kss::CycleTime) override;
   Status RegisterEventHandler(
     std::unique_ptr<kuka::external::control::EventHandler> && handler) override;
@@ -105,6 +108,9 @@ private:
   bool link_down_ = false;
   bool connected_ = false;
   bool drives_stuck_ = false;
+  bool error_message_ = false;
+  // As the SDK: a requested message reset holds until a drives-off or the drives coming on.
+  bool message_reset_held_ = false;
   // The DRIVES_ON bit last written; the KRC acts on its rising edge only.
   bool drives_on_input_ = false;
   bool normal_stop_ = false;

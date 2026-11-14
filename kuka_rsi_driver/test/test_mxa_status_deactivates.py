@@ -40,6 +40,8 @@ from rsi_fault_support import (  # noqa: E402
 GUARD_STOP_INJECTED_LINE = re.compile(r"mxA status fake: guard_stop=1")
 STOP_COMPLETE_LINE = re.compile(r"Stop complete")
 
+DRIVES_OFF_LINE = "mxA status fake: drives-off requested"
+
 
 @pytest.mark.launch_test
 @launch_testing.markers.keep_alive
@@ -64,6 +66,8 @@ class TestMxaStatusDeactivates(RsiFaultTestCase):
         self.assertEqual(match.group(1), name)
         self.assertTrue(datagram in match.group(2), "raw status not logged with the cause")
         self.assert_stopped(log, latched)
+        # Also when the status already reads the drives off: it can lag a power-up.
+        self.assertTrue(log.wait_for(DRIVES_OFF_LINE, timeout=1), "no drives-off requested")
         self.assertTrue(log.wait_for("Stop complete", timeout=5), "stop never completed")
         self.assertEqual(log.matches(RECEIVE_FAILURE_LINE), [], "RSI blamed for a status stop")
         self.assertEqual(

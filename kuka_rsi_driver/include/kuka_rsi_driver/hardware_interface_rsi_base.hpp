@@ -156,7 +156,7 @@ protected:
     return true;
   }
 
-  // Called when the drives did not come on in time.
+  // Called when an activation fails at or after the drives-on step.
   virtual KUKA_RSI_DRIVER_PUBLIC void AbandonDrivesOn() {}
 
   // Whether the drives count as on in the last copied status.

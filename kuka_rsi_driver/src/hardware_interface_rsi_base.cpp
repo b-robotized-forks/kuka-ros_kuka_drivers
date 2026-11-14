@@ -988,11 +988,13 @@ CallbackReturn KukaRSIHardwareInterfaceBase::extended_activation(const rclcpp_li
       cycle_status.return_code != kuka::external::control::ReturnCode::OK)
   {
     RCLCPP_ERROR(logger_, "Setting the RSI cycle time failed: %s", cycle_status.message);
+    AbandonDrivesOn();
     return CallbackReturn::FAILURE;
   }
 
   if (!DiscardQueuedPackets())
   {
+    AbandonDrivesOn();
     return CallbackReturn::FAILURE;
   }
 
@@ -1005,6 +1007,7 @@ CallbackReturn KukaRSIHardwareInterfaceBase::extended_activation(const rclcpp_li
   if (control_status.return_code == kuka::external::control::ReturnCode::ERROR)
   {
     RCLCPP_ERROR(logger_, "Starting external control failed: %s", control_status.message);
+    AbandonDrivesOn();
     return CallbackReturn::FAILURE;
   }
 
@@ -1229,11 +1232,9 @@ void KukaRSIHardwareInterfaceBase::RequestStop()
     RCLCPP_WARN(logger_, "Requesting the RSI program cancel failed: %s", cancel_status.message);
   }
 
-  if (control_state_.status_manager.DrivesPowered())
-  {
-    RCLCPP_INFO(logger_, "Turning off drives");
-    robot_ptr_->TurnOffDrives();
-  }
+  // Also with the drives reading off: the status copy can lag a power-up in progress.
+  RCLCPP_INFO(logger_, "Turning off drives");
+  robot_ptr_->TurnOffDrives();
 }
 
 void KukaRSIHardwareInterfaceBase::CheckStopComplete()
