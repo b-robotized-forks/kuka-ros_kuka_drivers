@@ -1177,6 +1177,14 @@ CallbackReturn KukaRSIHardwareInterfaceBase::extended_deactivation(const rclcpp_
   runtime_state_.packet_unanswered = false;
 
   RequestStop();
+  if (!packet_to_answer)
+  {
+    // As the stop packet's path does, so no packet of this run waits for the next activation.
+    if (const auto reset = robot_ptr_->ResetEndpoint(); reset.return_code != ReturnCode::OK)
+    {
+      RCLCPP_WARN(logger_, "Resetting the RSI endpoint failed: %s", reset.message);
+    }
+  }
 
   const double after_stop_ms =
     std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - stop_time).count();
