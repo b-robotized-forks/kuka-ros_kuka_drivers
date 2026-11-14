@@ -79,6 +79,10 @@ if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
 
   ament_add_gtest(test_velocity_estimator test/test_velocity_estimator.cpp)
+  ament_add_gtest(test_rsi_xml_configuration_parser test/test_rsi_xml_configuration_parser.cpp)
+  target_link_libraries(test_rsi_xml_configuration_parser ${PROJECT_NAME})
+  target_compile_definitions(test_rsi_xml_configuration_parser PRIVATE
+    RSI_XML_CONFIG_EXAMPLE="${CMAKE_CURRENT_SOURCE_DIR}/config/rsi_xml_config_example.yaml")
 
   # Test-only plugin with the mxA status fake. It lives in a private ament prefix under the
   # build directory, so it is never installed and no shipped description can select it.
@@ -141,6 +145,7 @@ if(BUILD_TESTING)
   add_launch_test(test/test_drives_on_after_normal_stop.py ${TEST_PLUGIN_ENV})
   add_launch_test(test/test_activation_fails_on_estop_during_drives_on.py ${TEST_PLUGIN_ENV})
   add_launch_test(test/test_detects_repeated_ipoc.py ${TEST_PLUGIN_ENV})
+  add_launch_test(test/test_logs_rsi_xml.py ${TEST_PLUGIN_ENV})
   add_launch_test(test/test_refuses_unsupported_mode_switch.py ${TEST_PLUGIN_ENV})
   add_launch_test(test/test_exports_status_state_interfaces.py ${TEST_PLUGIN_ENV})
   add_launch_test(test/test_exports_brake_test_status.py ${TEST_PLUGIN_ENV})

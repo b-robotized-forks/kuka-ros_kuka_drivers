@@ -666,10 +666,31 @@ bool KukaRSIHardwareInterfaceBase::SetupRobot(
 
 void KukaRSIHardwareInterfaceBase::Read(const int64_t request_timeout)
 {
-  auto motion_state_status =
-    robot_ptr_->ReceiveMotionState(std::chrono::milliseconds(request_timeout));
+  kuka::external::control::Status motion_state_status;
+  try
+  {
+    motion_state_status =
+      robot_ptr_->ReceiveMotionState(std::chrono::milliseconds(request_timeout));
+  }
+  catch (const std::exception & e)
+  {
+    const auto xml = robot_ptr_->GetLastReceivedXml();
+    RCLCPP_ERROR(
+      logger_, "Parsing the RSI packet failed (%s), %zu bytes: %.*s", e.what(), xml.size(),
+      static_cast<int>(xml.size()), xml.data());
+    runtime_state_.msg_received = false;
+    return;
+  }
   runtime_state_.msg_received =
     motion_state_status.return_code == kuka::external::control::ReturnCode::OK;
+  if (runtime_state_.msg_received && !diagnostics_state_.first_packet_logged)
+  {
+    const auto xml = robot_ptr_->GetLastReceivedXml();
+    RCLCPP_INFO(
+      logger_, "First RSI packet after the start request (%zu bytes): %.*s", xml.size(),
+      static_cast<int>(xml.size()), xml.data());
+    diagnostics_state_.first_packet_logged = true;
+  }
   if (runtime_state_.msg_received)
   {
     runtime_state_.packet_unanswered = true;
@@ -1301,6 +1322,14 @@ bool KukaRSIHardwareInterfaceBase::Write()
     return false;
   }
   runtime_state_.packet_unanswered = false;
+  if (!diagnostics_state_.first_command_logged)
+  {
+    const auto xml = robot_ptr_->GetLastSentXml();
+    RCLCPP_INFO(
+      logger_, "First RSI command (%zu bytes): %.*s", xml.size(), static_cast<int>(xml.size()),
+      xml.data());
+    diagnostics_state_.first_command_logged = true;
+  }
   return true;
 }
 
@@ -1310,6 +1339,8 @@ void KukaRSIHardwareInterfaceBase::ResetDiagnostics()
   diagnostics_state_.packet_loss_count = 0;
   diagnostics_state_.last_ipoc = 0;
   diagnostics_state_.repeated_ipoc_count = 0;
+  diagnostics_state_.first_packet_logged = false;
+  diagnostics_state_.first_command_logged = false;
   diagnostics_state_.last_msg_received_time = std::chrono::steady_clock::time_point{};
 
   // The arm can move while external control is off, so no sample is differentiated across it.

@@ -318,6 +318,9 @@ protected:
     uint64_t last_ipoc = 0;
     // Packets in a row that repeated last_ipoc.
     uint64_t repeated_ipoc_count = 0;
+    // Each activation logs its first RSI packet and command verbatim.
+    bool first_packet_logged = false;
+    bool first_command_logged = false;
   };
 
   struct ControlState

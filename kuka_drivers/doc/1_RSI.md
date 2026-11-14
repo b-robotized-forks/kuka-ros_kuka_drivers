@@ -103,6 +103,10 @@ Every `configure` of the `mxa_rsi` interface clears the status flags to their un
 
 The Lyrical `joint_state_broadcaster` does not publish `state/*` interfaces; read them with a state-only `gpio_controllers/GpioCommandController` on gpio `state`, as the tests do (`test/config/inhibitor_broadcaster.yaml`).
 
+### RSI XML in the log
+
+Every activation logs its first RSI packet (`First RSI packet after the start request (<n> bytes): ...`) and its first command (`First RSI command (<n> bytes): ...`) verbatim, so the XML the controller and the driver exchange can be checked against the RSI XML configuration. A packet that fails to parse is logged verbatim with its size and the parser's reason (`Parsing the RSI packet failed (<reason>), <n> bytes: ...`) and stops the component like a missing packet, raising `inhibitor/rsi`.
+
 ### Inhibitor slots
 
 The `mxa_rsi` and `eki_rsi` hardware interfaces report why the arm cannot move through six inhibitor slots, the stop surface a client reads. Each is a gpio group `inhibitor/<name>` (prefixed like `state`) with three state interfaces, `0` or `1`: `active`, `latched` and `operator_action`.
