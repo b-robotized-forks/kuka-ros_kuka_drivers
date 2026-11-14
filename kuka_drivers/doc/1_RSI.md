@@ -109,23 +109,23 @@ Every activation logs its first RSI packet (`First RSI packet after the start re
 
 ### Inhibitor slots
 
-The `mxa_rsi` and `eki_rsi` hardware interfaces report why the arm cannot move through six inhibitor slots, the stop surface a client reads. Each is a gpio group `inhibitor/<name>` (prefixed like `state`) with three state interfaces, `0` or `1`: `active`, `latched` and `operator_action`.
+The `mxa_rsi` and `eki_rsi` hardware interfaces report why the arm cannot move through six inhibitor slots, the stop surface a client reads. Each is a gpio group `inhibitor/<name>` (prefixed like `state`) with four state interfaces, `0` or `1`: `active`, `latched`, `operator_action` and `operator_action_assumed`.
 
-| Slot | `active` from | Latches | `operator_action` |
-|---|---|---|---|
-| `inhibitor/estop` | `state/emergency_stop` | yes | `1` (release and acknowledge) |
-| `inhibitor/guard` | `state/guard_stop` | yes | `1` |
-| `inhibitor/mode` | `state/operation_mode` is not `4` (EXT) | no | `1` (key switch) |
-| `inhibitor/drive_fault` | `state/drive_fault` | yes | `1` |
-| `inhibitor/brake_test` | `state/brake_test_due` | yes | `1` (iiQKA.UI only) |
-| `inhibitor/rsi` | the driver's own RSI stop: no RSI packet within `read_timeout_ms`, a failed send, a stop requested through `gpio/stop_request` or `gpio/rsi_mute_ms` (`fault_injection` only), or a stop no other slot explains; held until an activation succeeds | yes | `0` |
+| Slot | `active` from | Latches | `operator_action` | `operator_action_assumed` |
+|---|---|---|---|---|
+| `inhibitor/estop` | `state/emergency_stop` | yes | `1` (release and acknowledge) | `1` |
+| `inhibitor/guard` | `state/guard_stop` | yes | `1` | `1` |
+| `inhibitor/mode` | `state/operation_mode` is not `4` (EXT) | no | `1` (key switch) | `0` |
+| `inhibitor/drive_fault` | `state/drive_fault` | yes | `1` | `1` |
+| `inhibitor/brake_test` | `state/brake_test_due` | yes | `1` (iiQKA.UI only) | `1` |
+| `inhibitor/rsi` | the driver's own RSI stop: no RSI packet within `read_timeout_ms`, a failed send, a stop requested through `gpio/stop_request` or `gpio/rsi_mute_ms` (`fault_injection` only), or a stop no other slot explains; held until an activation succeeds | yes | `0` | `0` |
 
 The latch rule:
 
 - `active` is the live signal, refreshed on every `read()` in every lifecycle state.
 - `latched` is set for every slot that is active at the instant the component leaves `active` on a fault, and for a new e-stop or guard stop while the component is `inactive`. It holds while the component is `inactive`, after the slot's `active` drops too, and clears only when an activation succeeds. `inhibitor/mode` never latches: the key switch is its own release.
 - A guard stop reported while the driver's own stop is pending latches nothing: some controllers report the drives-off after a commanded deactivate as a guard stop. A commanded deactivate latches nothing, since the component leaves `active` before anything drops.
-- `operator_action` is the fixed per-slot property in the table.
+- `operator_action` is the fixed per-slot property in the table. `operator_action_assumed` is `1` where the driver observes the input clearing but cannot observe the KRC's acknowledgement: a client may try an activation once the person has acted, and its success is the proof. `inhibitor/mode` needs nothing beyond the key switch, which the driver reads live, and `inhibitor/rsi` needs no person.
 
 Every cause is its own slot, with no ranking: an e-stop and a guard stop in one telegram read as two latched slots, and leaving EXT on a controller that raises a safety stop first reads as `inhibitor/mode` active with `inhibitor/guard` latched. `inhibitor/guard` follows `!USER_SAFE`, which the KRC also drops for its own safety stop after an RSI fault, so `inhibitor/guard` latched beside `inhibitor/rsi` does not prove a guard input. `state/drives_powered` and `state/motion_possible` stay informational. Every stop raises at least one slot: a fault with no slot active, for example `motion_possible` or `drives_powered` dropping while active with nothing else set, or an SDK stop or error event the flags do not explain, means the command link to the controller is lost, so the component deactivates and raises `inhibitor/rsi`. An mxA loss (`mxa_status_timeout_ms`) is the component's error, not a stop, and has no slot.
 

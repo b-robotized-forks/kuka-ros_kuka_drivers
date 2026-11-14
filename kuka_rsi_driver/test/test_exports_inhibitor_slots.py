@@ -34,7 +34,7 @@ from launch.substitutions import LaunchConfiguration
 
 COMPONENT = "kr6_r700_2"
 INHIBITORS = ("estop", "guard", "mode", "drive_fault", "brake_test", "rsi")
-SLOT_INTERFACES = ("active", "latched", "operator_action")
+SLOT_INTERFACES = ("active", "latched", "operator_action", "operator_action_assumed")
 
 
 @pytest.mark.launch_test

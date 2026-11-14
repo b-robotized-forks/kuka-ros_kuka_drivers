@@ -31,6 +31,7 @@ from rsi_fault_support import (  # noqa: E402
     INHIBITORS,
     JTC,
     OPERATOR_ACTION,
+    OPERATOR_ACTION_ASSUMED,
     SLOT_INTERFACES,
     STATUS_STOP_LINE,
     UNATTRIBUTED_LINE,
@@ -113,6 +114,9 @@ class TestInhibitorSlots(RsiFaultTestCase):
         slots = self.inhibitors()
         for name in INHIBITORS:
             self.assertEqual(slots[name]["operator_action"], OPERATOR_ACTION[name], name)
+            self.assertEqual(
+                slots[name]["operator_action_assumed"], OPERATOR_ACTION_ASSUMED[name], name
+            )
             self.assertEqual(slots[name]["latched"], 0.0, name)
 
         # active is the live signal; while INACTIVE neither the key switch nor a brake-test

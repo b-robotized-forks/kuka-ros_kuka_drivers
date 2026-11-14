@@ -99,7 +99,8 @@ public:
   }
 
 protected:
-  // The inhibitor slots, in export order: inhibitor/<name>/{active,latched,operator_action}.
+  // The inhibitor slots, in export order:
+  // inhibitor/<name>/{active,latched,operator_action,operator_action_assumed}.
   enum Inhibitor : size_t
   {
     ESTOP,
@@ -118,6 +119,9 @@ protected:
   // Fixed per slot: 1 when the release needs an operator.
   static constexpr std::array<double, INHIBITOR_COUNT> INHIBITOR_OPERATOR_ACTION = {1.0, 1.0, 1.0,
                                                                                     1.0, 1.0, 0.0};
+  // 1 where the driver sees the input clear but not the KRC's acknowledgement.
+  static constexpr std::array<double, INHIBITOR_COUNT> INHIBITOR_OPERATOR_ACTION_ASSUMED = {
+    1.0, 1.0, 0.0, 1.0, 1.0, 0.0};
 
   // Latches reason unless one is set already (the first cause wins); true when this call set it.
   // write() returns DEACTIVATE while it is set.

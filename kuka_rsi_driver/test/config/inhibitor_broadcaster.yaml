@@ -24,14 +24,14 @@
           - robot_stopped
           - operation_mode
       inhibitor/estop:
-        interfaces: [active, latched, operator_action]
+        interfaces: [active, latched, operator_action, operator_action_assumed]
       inhibitor/guard:
-        interfaces: [active, latched, operator_action]
+        interfaces: [active, latched, operator_action, operator_action_assumed]
       inhibitor/mode:
-        interfaces: [active, latched, operator_action]
+        interfaces: [active, latched, operator_action, operator_action_assumed]
       inhibitor/drive_fault:
-        interfaces: [active, latched, operator_action]
+        interfaces: [active, latched, operator_action, operator_action_assumed]
       inhibitor/brake_test:
-        interfaces: [active, latched, operator_action]
+        interfaces: [active, latched, operator_action, operator_action_assumed]
       inhibitor/rsi:
-        interfaces: [active, latched, operator_action]
+        interfaces: [active, latched, operator_action, operator_action_assumed]

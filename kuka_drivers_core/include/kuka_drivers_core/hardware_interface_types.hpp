@@ -64,6 +64,7 @@ static constexpr char INHIBITOR_PREFIX[] = "inhibitor";
 static constexpr char INHIBITOR_ACTIVE[] = "active";
 static constexpr char INHIBITOR_LATCHED[] = "latched";
 static constexpr char INHIBITOR_OPERATOR_ACTION[] = "operator_action";
+static constexpr char INHIBITOR_OPERATOR_ACTION_ASSUMED[] = "operator_action_assumed";
 
 // Fault injection commands on the gpio component, exported only when fault_injection is true.
 static constexpr char STOP_REQUEST[] = "stop_request";

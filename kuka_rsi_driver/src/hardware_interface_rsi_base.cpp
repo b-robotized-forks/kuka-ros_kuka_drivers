@@ -251,6 +251,9 @@ void KukaRSIHardwareInterfaceBase::ExportInhibitorSlots(
     ExportState(
       state_interfaces, prefix, hardware_interface::INHIBITOR_OPERATOR_ACTION,
       &INHIBITOR_OPERATOR_ACTION[i]);
+    ExportState(
+      state_interfaces, prefix, hardware_interface::INHIBITOR_OPERATOR_ACTION_ASSUMED,
+      &INHIBITOR_OPERATOR_ACTION_ASSUMED[i]);
   }
 }
 

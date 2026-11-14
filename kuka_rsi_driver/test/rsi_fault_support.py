@@ -56,11 +56,20 @@ HARDWARE_EVENT_ERROR = 6
 
 # The inhibitor slots (gpio groups inhibitor/<name>), their interfaces and fixed operator_action.
 INHIBITORS = ("estop", "guard", "mode", "drive_fault", "brake_test", "rsi")
-SLOT_INTERFACES = ("active", "latched", "operator_action")
+SLOT_INTERFACES = ("active", "latched", "operator_action", "operator_action_assumed")
 OPERATOR_ACTION = {
     "estop": 1.0,
     "guard": 1.0,
     "mode": 1.0,
+    "drive_fault": 1.0,
+    "brake_test": 1.0,
+    "rsi": 0.0,
+}
+# Set where the driver cannot observe the release (rule 3 of the device contract's Inhibitor).
+OPERATOR_ACTION_ASSUMED = {
+    "estop": 1.0,
+    "guard": 1.0,
+    "mode": 0.0,
     "drive_fault": 1.0,
     "brake_test": 1.0,
     "rsi": 0.0,
@@ -260,7 +269,7 @@ class RsiFaultTestCase(MxaStatusFakeTestCase):
             self.inhibitor_values = slots
 
     def inhibitors(self):
-        """Return the next published slots: {name: {active, latched, operator_action}}."""
+        """Return the next published slots: {name: {interface: value}}."""
         self.inhibitor_values = None
         self.assertTrue(
             self._spin_until(lambda: self.inhibitor_values is not None, timeout=5),
@@ -421,6 +430,7 @@ __all__ = [
     "NO_STOP_PACKET_LINE",
     "OP_MODE_EXT",
     "OPERATOR_ACTION",
+    "OPERATOR_ACTION_ASSUMED",
     "RECEIVE_FAILURE_LINE",
     "SDK_ERROR_LINE",
     "SDK_RECEIVE_TIMEOUT_TEXT",
