@@ -1069,9 +1069,26 @@ bool KukaRSIHardwareInterfaceBase::DiscardQueuedPackets()
   const std::vector<double> zeros(info_.joints.size(), 0.0);
   uint64_t discarded = 0;
   uint64_t first_ipoc = 0;
-  while (discarded < MAX_DISCARDED_PACKETS &&
-         robot_ptr_->ReceiveMotionState(DISCARD_RECEIVE_TIMEOUT).return_code == ReturnCode::OK)
+  while (discarded < MAX_DISCARDED_PACKETS)
   {
+    kuka::external::control::Status motion_state_status;
+    try
+    {
+      motion_state_status = robot_ptr_->ReceiveMotionState(DISCARD_RECEIVE_TIMEOUT);
+    }
+    catch (const std::exception & e)
+    {
+      const auto xml = robot_ptr_->GetLastReceivedXml();
+      RCLCPP_ERROR(
+        logger_, "Activation failed: parsing a queued RSI packet failed (%s), %zu bytes: %.*s",
+        e.what(), xml.size(), static_cast<int>(xml.size()), xml.data());
+      robot_ptr_->ResetControlSignal();
+      return false;
+    }
+    if (motion_state_status.return_code != ReturnCode::OK)
+    {
+      break;
+    }
     if (discarded++ == 0)
     {
       first_ipoc = robot_ptr_->getIpoc();
