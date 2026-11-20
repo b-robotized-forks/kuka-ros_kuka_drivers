@@ -1462,6 +1462,16 @@ bool KukaRSIHardwareInterfaceBase::ReadPacketParameters()
         it->second.c_str());
       return false;
     }
+    const double nyquist_hz = 0.5 / (RSI_CYCLE_TIME_MS / 1000.0);
+    if (cutoff_hz >= nyquist_hz)
+    {
+      RCLCPP_ERROR(
+        logger_,
+        "velocity_filter_cutoff_hz (%.1f Hz) must be below the Nyquist frequency (%.1f Hz) at "
+        "the %.0f ms RSI cycle time",
+        cutoff_hz, nyquist_hz, RSI_CYCLE_TIME_MS);
+      return false;
+    }
   }
   velocity_estimator_.Configure(info_.joints.size(), cutoff_hz, RSI_CYCLE_TIME_MS / 1000.0);
 
