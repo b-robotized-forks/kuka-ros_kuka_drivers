@@ -1139,6 +1139,16 @@ CallbackReturn KukaRSIHardwareInterfaceBase::extended_deactivation(const rclcpp_
 {
   using kuka::external::control::ReturnCode;
 
+  // A repeat silences the controller, so the next activation's ResetDiagnostics() would clear
+  // the count with no new IPOC ever arriving to log it first.
+  if (diagnostics_state_.repeated_ipoc_count > 0)
+  {
+    RCLCPP_WARN(
+      logger_, "IPOC %lu repeated %lu time(s)", diagnostics_state_.last_ipoc,
+      diagnostics_state_.repeated_ipoc_count);
+    diagnostics_state_.repeated_ipoc_count = 0;
+  }
+
   // Before the stop packet, so the stop event it causes is not latched as a fault.
   runtime_state_.is_active.store(false, std::memory_order_release);
 
