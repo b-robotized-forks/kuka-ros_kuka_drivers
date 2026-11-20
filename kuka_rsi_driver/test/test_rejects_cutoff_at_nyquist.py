@@ -24,7 +24,6 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from rsi_fault_support import (  # noqa: E402
-    LogCursor,
     RsiFaultTestCase,
     fault_launch_description,
     hardware_params,
@@ -41,19 +40,12 @@ def generate_test_description():
 
 class TestRejectsCutoffAtNyquist(RsiFaultTestCase):
     def test_rejects_cutoff_at_nyquist(self, proc_output):
-        log = LogCursor(proc_output)
-        self.assertTrue(
-            log.wait_for(
-                f"velocity_filter_cutoff_hz ({NYQUIST_HZ:.1f} Hz) must be below the Nyquist "
-                f"frequency ({NYQUIST_HZ:.1f} Hz)",
-                timeout=10,
-            ),
-            "cutoff at Nyquist was not rejected",
+        proc_output.assertWaitFor(
+            f"velocity_filter_cutoff_hz ({NYQUIST_HZ:.1f} Hz) must be below the Nyquist "
+            f"frequency ({NYQUIST_HZ:.1f} Hz)",
+            timeout=10,
         )
-        self.assertTrue(
-            log.wait_for("Failed to initialize hardware", timeout=5),
-            "hardware initialization did not fail on the rejected cutoff",
-        )
+        proc_output.assertWaitFor("Failed to initialize hardware", timeout=5)
 
 
 @launch_testing.post_shutdown_test()
