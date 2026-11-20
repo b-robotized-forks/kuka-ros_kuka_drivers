@@ -46,6 +46,8 @@ class TestRejectsCutoffAtNyquist(RsiFaultTestCase):
             timeout=10,
         )
         proc_output.assertWaitFor("Failed to initialize hardware", timeout=5)
+        # Shutting down before the simulator is up leaves it ignoring SIGINT until SIGTERM.
+        proc_output.assertWaitFor("[kuka_rsi_simulator]: Started", timeout=10)
 
 
 @launch_testing.post_shutdown_test()
