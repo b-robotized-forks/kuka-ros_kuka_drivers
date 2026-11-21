@@ -87,7 +87,11 @@ class TestDeactivateDropsQueuedPackets(RsiFaultTestCase):
         self.set_simulator_fault("fault_dropped_packet_count", SIMULATOR_SILENCE_PACKETS)
         self.assertIsNotNone(log.wait_for_match(MUTE_STOP_LINE, timeout=5), "no mute stop line")
         self.wait_for_component_state(State.PRIMARY_STATE_INACTIVE)
-        self.assert_latched({"rsi"})
+        # The first inhibitor sample after the stop can predate the latch.
+        self.assertTrue(
+            self._spin_until(lambda: self.latched() == {"rsi"}, timeout=2),
+            "rsi not latched after the stop",
+        )
         self.assertTrue(log.wait_for(NO_STOP_PACKET_LINE, timeout=5), "stop packet attempted")
         self.assertTrue(log.wait_for("Stop complete", timeout=5), "stop never completed")
         queued = [i for i in self.state_ipocs if i > muted_after]
