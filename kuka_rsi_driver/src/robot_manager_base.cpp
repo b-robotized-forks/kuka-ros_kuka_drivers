@@ -33,11 +33,29 @@ RobotManagerBase::RobotManagerBase() : kuka_drivers_core::ROS2BaseLCNode("robot_
   cbg_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   event_callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
 
-  change_hardware_state_client_ = this->create_client<SetHardwareComponentState>(
-    "controller_manager/set_hardware_component_state", qos, cbg_);
+  this->registerStaticParameter<std::string>(
+    "controller_manager_name", "controller_manager",
+    kuka_drivers_core::ParameterSetAccessRights{false, false},
+    [this](const std::string & controller_manager_name)
+    {
+      controller_manager_name_ = controller_manager_name;
+      return true;
+    });
 
-  change_controller_state_client_ =
-    this->create_client<SwitchController>("controller_manager/switch_controller", qos, cbg_);
+  this->registerStaticParameter<bool>(
+    "set_controller_manager_update_rate", true,
+    kuka_drivers_core::ParameterSetAccessRights{false, false},
+    [this](const bool set_controller_manager_update_rate)
+    {
+      set_controller_manager_update_rate_ = set_controller_manager_update_rate;
+      return true;
+    });
+
+  change_hardware_state_client_ = this->create_client<SetHardwareComponentState>(
+    controller_manager_name_ + "/set_hardware_component_state", qos, cbg_);
+
+  change_controller_state_client_ = this->create_client<SwitchController>(
+    controller_manager_name_ + "/switch_controller", qos, cbg_);
 
   auto is_configured_qos = rclcpp::QoS(rclcpp::KeepLast(1));
   is_configured_qos.best_effort();
@@ -83,7 +101,7 @@ RobotManagerBase::RobotManagerBase() : kuka_drivers_core::ROS2BaseLCNode("robot_
     });
 
   set_param_client_ = this->create_client<rcl_interfaces::srv::SetParameters>(
-    "controller_manager/set_parameters", rclcpp::SystemDefaultsQoS(), cbg_);
+    controller_manager_name_ + "/set_parameters", rclcpp::SystemDefaultsQoS(), cbg_);
 
   // Publisher for sending cycle_time to KssMessageHandler
   cycle_time_pub_ = this->create_publisher<std_msgs::msg::UInt8>(
@@ -406,6 +424,15 @@ bool RobotManagerBase::ValidateCycleTime(CycleTime cycle_time)
 
 bool RobotManagerBase::ChangeCycleTime(CycleTime cycle_time)
 {
+  if (!set_controller_manager_update_rate_)
+  {
+    RCLCPP_INFO(
+      this->get_logger(),
+      "set_controller_manager_update_rate is false: the update rate of the controller manager is "
+      "not changed.");
+    return true;
+  }
+
   if (robot_models_.size() != 1)
   {
     RCLCPP_WARN(
